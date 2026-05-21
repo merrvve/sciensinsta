@@ -1,0 +1,36 @@
+services:
+
+  # ── FastAPI backend ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8000"           # internal only — nginx proxies /api/* here
+    environment:
+      # API calls come through nginx on the same origin, so no CORS needed
+      # in production. Keep localhost entries for curl / health checks.
+      ALLOWED_ORIGINS: "http://localhost,http://localhost:80"
+    env_file:
+      - path: ./backend/.env
+        required: false  # optional — falls back to 'environment' above
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Astro frontend (nginx) ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"          # only exposed port — everything goes through nginx
+    depends_on:
+      backend:
+        condition: service_healthy

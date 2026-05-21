@@ -1,0 +1,279 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Share  from '../components/Share.astro';
+---
+
+<Layout title="Sciensinsta – PDF Text & Image Extraction Tool">
+<section class="min-h-screen p-6 dark:bg-gray-800 dark:text-white">
+
+  <div class="w-full mb-2 mt-2 font-bold text-lg flex items-center gap-3">
+    PDF Text and Image Extraction Tool
+    <Share title="Extract Text and Images From PDF Files" link="/extract-pdf" />
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- Input panel -->
+    <div class="w-full h-auto">
+      <h2 class="mb-5 underline decoration-pink-500 underline-offset-8 decoration-dashed font-semibold">Input</h2>
+
+      <div
+        id="drop-zone"
+        class="file_upload p-2 relative border-4 border-dotted border-gray-300 rounded-lg cursor-pointer"
+      >
+        <svg class="text-pink-500 w-24 mx-auto mt-10 mb-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+        <span class="flex flex-col w-max mx-auto text-center">
+          <input type="file" id="file-input" class="hidden" accept="application/pdf" />
+          <label for="file-input" class="bg-pink-600 text-white border border-gray-300 rounded font-semibold cursor-pointer p-1 px-3 hover:bg-pink-700">
+            Select
+          </label>
+          <span class="text-pink-500 uppercase m-4">or drop files here</span>
+        </span>
+      </div>
+
+      <!-- Loading spinner -->
+      <div id="pdf-loading" class="hidden flex-col items-center justify-center text-pink-500 mt-8">
+        <svg class="animate-spin w-12 h-12 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        <p class="mt-3 text-sm text-center">Extracting content…</p>
+      </div>
+
+      <!-- Buy Me a Coffee (shown after result) -->
+      <div id="coffee-link" class="hidden flex items-center justify-center mt-10">
+        <a href="https://www.buymeacoffee.com/mervsenv" target="_blank"
+           class="m-2 p-2 rounded text-pink-500 hover:bg-pink-500 hover:text-white transition-colors">
+          ☕ Buy me a coffee
+        </a>
+      </div>
+    </div>
+
+    <!-- Output panel -->
+    <div class="h-auto col-span-2">
+      <h2 class="ml-5 mb-5 underline col-span-2 decoration-pink-500 underline-offset-8 decoration-dashed font-semibold">Output</h2>
+
+      <div id="output-panel" class="hidden h-full flex flex-col md:pr-4">
+
+        <!-- Extracted text -->
+        <div class="relative">
+          <textarea
+            id="extracted-text"
+            class="p-2 border-4 border-dotted border-gray-300 rounded-lg w-full h-auto md:ml-5 bg-transparent dark:text-white"
+            rows="20"
+          ></textarea>
+          <button
+            id="copy-btn"
+            class="absolute top-1 right-1 text-sm bg-pink-500 hover:bg-pink-700 text-white font-bold py-1 px-2 rounded flex items-center gap-1"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span id="copy-label">Copy</span>
+          </button>
+        </div>
+
+        <!-- Extracted images -->
+        <div id="images-section" class="hidden mt-6">
+          <h3 class="m-4 font-semibold">Images</h3>
+          <div
+            id="image-view"
+            class="border-4 border-dotted border-gray-300 p-2 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-4 md:ml-5"
+          ></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+</Layout>
+
+<script>
+  const PDF_JS_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.7.107/pdf.min.js';
+  const PDF_WORKER    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.7.107/pdf.worker.min.js';
+  const MAX_SIZE      = 30 * 1024 * 1024; // 30 MB (matching original limit)
+
+  // ─── Show / hide helpers ──────────────────────────────────────────────────
+  function show(id: string) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('hidden'); el.classList.add('flex'); }
+  }
+  function hide(id: string) {
+    const el = document.getElementById(id);
+    if (el) { el.classList.add('hidden'); el.classList.remove('flex'); }
+  }
+
+  // ─── DOM refs ─────────────────────────────────────────────────────────────
+  const fileInput     = document.getElementById('file-input')     as HTMLInputElement;
+  const dropZone      = document.getElementById('drop-zone')!;
+  const extractedText = document.getElementById('extracted-text') as HTMLTextAreaElement;
+  const copyBtn       = document.getElementById('copy-btn')!;
+  const copyLabel     = document.getElementById('copy-label')!;
+  const imageView     = document.getElementById('image-view')!;
+
+  // ─── Lazy-load pdf.js from CDN ────────────────────────────────────────────
+  function loadPdfJs(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // Already loaded
+      if ((window as any).pdfjsLib) { resolve(); return; }
+      const s   = document.createElement('script');
+      s.src     = PDF_JS_CDN;
+      s.onload  = () => resolve();
+      s.onerror = () => reject(new Error('Failed to load pdf.js'));
+      document.head.appendChild(s);
+    });
+  }
+
+  // ─── JPEG byte-scan ───────────────────────────────────────────────────────
+  // Finds every JPEG start signature (FF D8 FF xx) in raw PDF bytes.
+  // Broadened beyond E0-EF to catch all JPEG variants embedded in PDFs.
+  function findJpegStarts(bytes: Uint8Array): number[] {
+    const starts: number[] = [];
+    for (let i = 0; i < bytes.length - 3; i++) {
+      if (bytes[i] === 0xff && bytes[i + 1] === 0xd8 && bytes[i + 2] === 0xff) {
+        starts.push(i);
+      }
+    }
+    return starts;
+  }
+
+  function renderImages(bytes: Uint8Array) {
+    imageView.innerHTML = '';
+    const starts = findJpegStarts(bytes);
+
+    if (starts.length === 0) {
+      hide('images-section');
+      return;
+    }
+
+    starts.forEach((start, idx) => {
+      // Slice from this JPEG start to the next one (or end of file).
+      // Browsers stop decoding at the JPEG end-of-image marker (FF D9).
+      const end  = idx + 1 < starts.length ? starts[idx + 1] : bytes.length;
+      const blob = new Blob([bytes.slice(start, end)], { type: 'image/jpeg' });
+      const url  = URL.createObjectURL(blob);
+
+      const img = new Image();
+      img.src       = url;
+      img.className = 'w-full object-contain rounded ml-2 mb-5';
+      img.alt       = `Extracted image ${idx + 1}`;
+
+      // Revoke the object URL once the image loads to free memory
+      img.onload  = () => URL.revokeObjectURL(url);
+      img.onerror = () => {
+        // Not a real JPEG at this offset (false positive) — remove it silently
+        img.remove();
+        if (imageView.children.length === 0) hide('images-section');
+      };
+
+      imageView.appendChild(img);
+    });
+
+    show('images-section');
+  }
+
+  // ─── Text extraction via pdf.js ───────────────────────────────────────────
+  async function extractText(bytes: Uint8Array): Promise<string> {
+    const pdfjs = (window as any).pdfjsLib;
+    pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER;
+
+    const pdf   = await pdfjs.getDocument({ data: bytes }).promise;
+    const pages = await Promise.all(
+      Array.from({ length: pdf.numPages }, (_, i) => pdf.getPage(i + 1))
+    );
+
+    const pageTexts = await Promise.all(
+      pages.map(async (page: any) => {
+        const tc = await page.getTextContent();
+        let text = '',
+            lastY: number | undefined,
+            lastFontSize: number | undefined,
+            lastX = 0;
+
+        for (const item of tc.items as any[]) {
+          const [, , , fs, x, y] = item.transform;
+
+          if (lastY !== y && lastFontSize !== fs)           text += '\n';
+          if (lastY !== undefined
+              && Math.abs(lastY - y) > (lastFontSize ?? 0) * 1.5
+              && lastFontSize !== fs)                        text += '\n';
+          if (Math.abs(lastX - x) > (lastFontSize ?? 0) * 2.5) text += '\n';
+
+          text += item.str + ' ';
+          lastY = y; lastX = x; lastFontSize = fs;
+        }
+        return text;
+      })
+    );
+
+    return pageTexts.join('\n');
+  }
+
+  // ─── Main: process a dropped / selected file ─────────────────────────────
+  async function processFile(file: File) {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Please select a PDF file.'); return;
+    }
+    if (file.size > MAX_SIZE) {
+      alert('Sorry, this file is too big (max 30 MB).'); return;
+    }
+
+    hide('output-panel');
+    hide('coffee-link');
+    show('pdf-loading');
+
+    try {
+      await loadPdfJs();
+
+      const buffer = await file.arrayBuffer();
+      const bytes  = new Uint8Array(buffer);
+
+      // Run text extraction and image scan in parallel
+      const [text] = await Promise.all([
+        extractText(bytes),
+        Promise.resolve(renderImages(bytes)),   // sync, wrapped for consistency
+      ]);
+
+      extractedText.value = text;
+
+      hide('pdf-loading');
+      show('output-panel');
+      show('coffee-link');
+    } catch (err) {
+      hide('pdf-loading');
+      alert('Error reading PDF. Please try another file.');
+      console.error(err);
+    }
+  }
+
+  // ─── File input ───────────────────────────────────────────────────────────
+  fileInput.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) processFile(file);
+  });
+
+  // ─── Drag & drop ──────────────────────────────────────────────────────────
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('border-pink-500');
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('border-pink-500');
+  });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('border-pink-500');
+    const file = e.dataTransfer?.files[0];
+    if (file) processFile(file);
+  });
+
+  // ─── Copy button ──────────────────────────────────────────────────────────
+  copyBtn.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(extractedText.value);
+    copyLabel.textContent = 'Copied!';
+    setTimeout(() => { copyLabel.textContent = 'Copy'; }, 2000);
+  });
+</script>

@@ -1,0 +1,181 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Share  from '../components/Share.astro';
+---
+
+<Layout title="Sciensinsta – PubMed Batch Abstract Download Tool">
+<section class="min-h-screen p-6 dark:bg-gray-800 dark:text-white">
+
+  <div class="w-full mb-2 mt-2 font-bold text-lg">
+    PubMed Batch Abstract Download Tool
+  </div>
+  <div class="mb-4">
+    <Share title="PubMed Batch Abstract Download Tool" link="/pubmed-abstracts" />
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+    <!-- Input panel -->
+    <div class="w-full h-auto flex flex-col mb-5">
+      <h2 class="mb-5 underline decoration-pink-500 underline-offset-8 decoration-dashed font-semibold">
+        Search Query:
+      </h2>
+
+      <input
+        id="query-input"
+        type="text"
+        class="border-2 border-gray-300 p-2 rounded bg-transparent w-full dark:border-gray-600 dark:text-white focus:outline-none focus:border-pink-400"
+        placeholder="Ex: bortezomib resistance"
+      />
+
+      <button
+        id="search-btn"
+        class="mt-2 bg-pink-500 text-white rounded p-2 hover:bg-pink-600 transition-colors"
+      >
+        Download Abstracts
+      </button>
+
+      <p class="mt-2 text-xs text-gray-400 leading-relaxed">
+        When you click the button, this tool searches PubMed for your query, downloads the latest 100 published article abstracts, and provides them in a structured Excel file.
+      </p>
+
+      <!-- Buy Me a Coffee (shown after result) -->
+      <div id="coffee-link" class="hidden flex items-center justify-center mt-10">
+        <a href="https://www.buymeacoffee.com/mervsenv" target="_blank"
+           class="m-2 p-2 rounded text-pink-500 hover:bg-pink-500 hover:text-white transition-colors">
+          ☕ Buy me a coffee
+        </a>
+      </div>
+    </div>
+
+    <!-- Results panel -->
+    <div class="h-auto col-span-2">
+      <h2 class="md:ml-5 mb-5 underline col-span-2 decoration-pink-500 underline-offset-8 decoration-dashed font-semibold">
+        Results:
+      </h2>
+
+      <!-- Loading spinner -->
+      <div id="results-loading" class="hidden flex flex-col items-center justify-center text-pink-500">
+        <svg class="animate-spin w-12 h-12 m-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+      </div>
+
+      <!-- Error message -->
+      <div id="results-error" class="hidden flex flex-col items-center justify-center p-6 text-red-500">
+        Sorry, an error occurred while contacting the server. Please try again or report the issue to the authors.
+      </div>
+
+      <!-- Results -->
+      <div id="results-panel" class="hidden relative p-2 md:ml-5">
+        <p class="mb-5">
+          A total of
+          <span id="total-abstracts" class="underline decoration-pink-500 underline-offset-4 font-bold"></span>
+          article abstracts found and
+          <span id="downloaded-abstracts" class="underline decoration-pink-500 underline-offset-4 font-bold"></span>
+          of them downloaded.
+        </p>
+
+        <div class="mb-5">
+          Your abstracts are ready as a table in this Excel file. Click to download:
+          <div class="flex items-center">
+            <button
+              id="download-btn"
+              class="m-2 p-4 rounded text-pink-500 hover:bg-pink-500 hover:text-white transition-colors flex flex-col items-center"
+            >
+              <!-- Excel SVG icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm2-2h8v-1H8v1zm0-3h5v-1H8v1zm0-3h8v-1H8v1z"/>
+              </svg>
+              Download .xlsx
+            </button>
+            <!-- Hidden anchor for programmatic download -->
+            <a id="download-link"></a>
+          </div>
+        </div>
+
+        <p class="mb-5">
+          Word cloud generated from the downloaded abstracts (word frequency):
+        </p>
+        <img id="wordcloud-img" class="rounded-lg max-w-full" alt="Word cloud" />
+      </div>
+
+    </div>
+  </div>
+</section>
+</Layout>
+
+<script>
+  function show(id: string) { document.getElementById(id)?.classList.remove('hidden'); }
+  function hide(id: string) { document.getElementById(id)?.classList.add('hidden'); }
+
+  const queryInput    = document.getElementById('query-input')    as HTMLInputElement;
+  const searchBtn     = document.getElementById('search-btn')!;
+  const downloadBtn   = document.getElementById('download-btn')!;
+  const downloadLink  = document.getElementById('download-link')  as HTMLAnchorElement;
+  const totalEl       = document.getElementById('total-abstracts')!;
+  const downloadedEl  = document.getElementById('downloaded-abstracts')!;
+  const wordcloudImg  = document.getElementById('wordcloud-img')  as HTMLImageElement;
+
+  let currentWorkId = '';
+
+  searchBtn.addEventListener('click', async () => {
+    const query = queryInput.value.trim();
+    if (!query) return;
+
+    hide('results-panel');
+    hide('results-error');
+    hide('coffee-link');
+    show('results-loading');
+
+    try {
+      const res = await fetch('/api/search-pubmed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+      if (!res.ok) throw new Error('Server error');
+
+      const data = await res.json();
+      currentWorkId = data.work_id;
+
+      totalEl.textContent      = String(data.total_abstracts);
+      downloadedEl.textContent = String(data.downloaded_abstracts);
+      wordcloudImg.src         = `data:image/png;base64,${data.image}`;
+
+      hide('results-loading');
+      show('results-panel');
+      show('coffee-link');
+    } catch {
+      hide('results-loading');
+      show('results-error');
+    }
+  });
+
+  downloadBtn.addEventListener('click', async () => {
+    if (!currentWorkId) { alert('File not found.'); return; }
+
+    try {
+      const res = await fetch('/api/download-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: currentWorkId + '.xlsx' }),
+      });
+      if (!res.ok) throw new Error('Server error');
+
+      const blob    = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      downloadLink.href = blobUrl;
+      downloadLink.setAttribute('download', 'abstracts.xlsx');
+      downloadLink.click();
+    } catch (err) {
+      alert('Download failed. Please try again.');
+    }
+  });
+
+  // Allow pressing Enter in the query input
+  queryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') searchBtn.click();
+  });
+</script>

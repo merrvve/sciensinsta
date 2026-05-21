@@ -1,0 +1,115 @@
+---
+const currentPath = Astro.url.pathname;
+---
+
+<nav class="text-gray-600 dark:text-slate-200 body-font bg-gray-100 dark:bg-gray-900 shadow-lg">
+  <div class="w-full flex flex-wrap items-center justify-between p-4">
+
+    <!-- Logo -->
+    <a href="/" class="flex items-start space-x-3 rtl:space-x-reverse">
+      <img src="/logo-t.png" class="w-10 h-10 rounded-lg" alt="Sciensinsta Logo" />
+      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">Sciensinsta</span>
+    </a>
+
+    <!-- Mobile hamburger -->
+    <button
+      id="navbar-toggle"
+      type="button"
+      class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600"
+      aria-controls="navbar-dropdown"
+      aria-expanded="false"
+    >
+      <span class="sr-only">Open main menu</span>
+      <svg class="w-5 h-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 17 14">
+        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h15M1 7h15M1 13h15" />
+      </svg>
+    </button>
+
+    <!-- Nav links -->
+    <div class="hidden w-full md:block md:w-auto mt-2" id="navbar-dropdown">
+      <ul class="flex flex-col font-medium p-4 md:p-0 mt-6 border border-gray-100 rounded-lg md:space-x-8 rtl:space-x-reverse md:flex-row md:items-center md:mt-0 md:border-0 dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">
+
+        <li>
+          <a
+            href="/"
+            class={`block py-2 px-3 rounded md:border-0 md:p-0 transition-colors
+              ${currentPath === '/'
+                ? 'text-pink-600 dark:text-pink-400'
+                : 'text-gray-900 dark:text-white hover:bg-gray-100 md:hover:bg-transparent md:hover:text-pink-700 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent md:dark:hover:text-pink-500'}`}
+          >Home</a>
+        </li>
+
+        <li>
+          <a
+            href="/about"
+            class={`block py-3 px-3 rounded md:border-0 md:p-0 transition-colors
+              ${currentPath === '/about'
+                ? 'text-pink-600 dark:text-pink-400'
+                : 'text-gray-900 dark:text-white hover:bg-gray-100 md:hover:bg-transparent md:hover:text-pink-700 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent md:dark:hover:text-pink-500'}`}
+          >About</a>
+        </li>
+
+        <li>
+          <a
+            href="/#contact"
+            class="block py-3 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-pink-700 md:p-0 dark:text-white md:dark:hover:text-pink-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent transition-colors"
+          >Contact</a>
+        </li>
+
+        <!-- Dark / Light toggle -->
+        <li>
+          <button
+            id="theme-toggle"
+            class="w-9 h-9 border-2 border-pink-500 text-pink-500 dark:border-white dark:text-white inline-flex items-center justify-center rounded hover:bg-pink-500 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 focus:scale-100 duration-300 active:scale-110 cursor-pointer transition-colors"
+            aria-label="Toggle dark mode"
+            title="Toggle dark mode"
+          >
+            <!-- Sun icon (shown in dark mode) -->
+            <svg id="icon-sun" class="hidden w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.07-6.07-.71.71M6.34 17.66l-.71.71m12.73 0-.71-.71M6.34 6.34l-.71-.71M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7z" />
+            </svg>
+            <!-- Moon icon (shown in light mode) -->
+            <svg id="icon-moon" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          </button>
+        </li>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<script>
+  // ── Dark mode ──────────────────────────────────────────────────────────────
+  const html = document.documentElement;
+  const themeToggle = document.getElementById('theme-toggle');
+  const iconSun  = document.getElementById('icon-sun');
+  const iconMoon = document.getElementById('icon-moon');
+
+  function applyTheme(dark: boolean) {
+    html.classList.toggle('dark', dark);
+    iconSun?.classList.toggle('hidden', !dark);
+    iconMoon?.classList.toggle('hidden', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }
+
+  // Initialise from localStorage (or system preference as fallback)
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(saved ? saved === 'dark' : prefersDark);
+
+  themeToggle?.addEventListener('click', () => {
+    applyTheme(!html.classList.contains('dark'));
+  });
+
+  // ── Mobile menu ────────────────────────────────────────────────────────────
+  const navbarToggle   = document.getElementById('navbar-toggle');
+  const navbarDropdown = document.getElementById('navbar-dropdown');
+
+  navbarToggle?.addEventListener('click', () => {
+    const isOpen = !navbarDropdown?.classList.contains('hidden');
+    navbarDropdown?.classList.toggle('hidden', isOpen);
+    navbarToggle.setAttribute('aria-expanded', String(!isOpen));
+  });
+</script>

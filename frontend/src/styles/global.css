@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* Enable class-based dark mode for Tailwind v4 */
+@variant dark (&:where(.dark, .dark *));
+
+/* Poppins as the base font */
+@theme {
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* All interactive elements use pointer cursor by default */
+a,
+button:not(:disabled),
+[role="button"] {
+  cursor: pointer;
+}

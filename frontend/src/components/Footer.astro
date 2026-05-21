@@ -1,0 +1,75 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="body-font dark:bg-gray-900 dark:text-white bg-gray-100 border-t border-gray-200 dark:border-gray-800">
+  <div class="container px-5 py-8 mx-auto flex items-center sm:flex-row flex-col">
+
+    <!-- Logo + name -->
+    <a href="/" class="flex title-font font-medium items-center md:justify-start justify-center">
+      <img src="/logo-t.png" class="w-10 rounded-lg" alt="Sciensinsta Logo" />
+      <span class="ml-3 text-xl">Sciensinsta</span>
+    </a>
+
+    <!-- Copyright -->
+    <p class="text-sm text-gray-500 sm:ml-4 sm:pl-4 sm:border-l-2 sm:border-gray-200 dark:sm:border-gray-700 sm:py-2 sm:mt-0 mt-4">
+      © {year} Sciensinsta — All rights reserved.
+    </p>
+
+    <!-- Social icons -->
+    <span class="inline-flex sm:ml-auto sm:mt-0 mt-4 justify-center sm:justify-start text-lg gap-1">
+
+      <!-- Buy Me a Coffee -->
+      <a
+        class="w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-pink-700 dark:hover:text-pink-400 transition-colors"
+        href="https://www.buymeacoffee.com/mervsenv"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Buy me a coffee"
+      >
+        <!-- coffee cup SVG -->
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5">
+          <path d="M2 21h18v-2H2v2zm2-3h14V10H4v8zm12-10V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2h12zm2 0h1a3 3 0 0 1 0 6h-1V8zm-9-5a1 1 0 0 1 1-1 3 3 0 0 1 0 6 1 1 0 0 1 0-2 1 1 0 0 0 0-2 1 1 0 0 1-1-1z"/>
+        </svg>
+      </a>
+
+      <!-- Instagram -->
+      <a
+        class="w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-pink-700 dark:hover:text-pink-400 transition-colors"
+        href="https://instagram.com/sciensinsta"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Instagram"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5">
+          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 1.366.062 2.633.334 3.608 1.308.975.975 1.246 2.242 1.308 3.608.058 1.265.069 1.645.069 4.849s-.011 3.584-.069 4.85c-.062 1.366-.333 2.633-1.308 3.608-.975.975-2.242 1.246-3.608 1.308-1.266.058-1.646.069-4.85.069s-3.584-.011-4.85-.069c-1.366-.062-2.633-.333-3.608-1.308-.975-.975-1.246-2.242-1.308-3.608C2.175 15.584 2.163 15.204 2.163 12s.012-3.584.07-4.85c.062-1.366.333-2.633 1.308-3.608C4.516 2.497 5.783 2.225 7.149 2.163 8.415 2.105 8.796 2.163 12 2.163zm0-2.163c-3.259 0-3.667.014-4.947.072-1.612.074-3.055.44-4.204 1.589C1.7 2.81 1.334 4.253 1.26 5.865.986 7.635.986 8.08.986 12c0 3.92 0 4.365.274 6.135.074 1.612.44 3.055 1.589 4.204C3.998 23.488 5.44 23.854 7.053 23.928c1.28.058 1.688.072 4.947.072s3.667-.014 4.947-.072c1.612-.074 3.055-.44 4.204-1.589 1.149-1.149 1.515-2.592 1.589-4.204.274-1.77.274-2.215.274-6.135 0-3.92 0-4.365-.274-6.135-.074-1.612-.44-3.055-1.589-4.204C20.002.512 18.56.146 16.947.072 15.667.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+        </svg>
+      </a>
+
+      <!-- YouTube -->
+      <a
+        class="w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-pink-700 dark:hover:text-pink-400 transition-colors"
+        href="https://www.youtube.com/channel/UCamWFYyNkHoU-xL-Q4Pb_Gg"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="YouTube"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5">
+          <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+        </svg>
+      </a>
+
+      <!-- Email -->
+      <a
+        class="w-8 h-8 inline-flex items-center justify-center text-gray-500 hover:text-pink-700 dark:hover:text-pink-400 transition-colors"
+        href="mailto:mervsen@gmail.com"
+        aria-label="Email"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" class="w-5 h-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+      </a>
+
+    </span>
+  </div>
+</footer>

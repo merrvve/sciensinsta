@@ -1,0 +1,30 @@
+# Development overrides — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Changes vs production:
+#   • backend:  uvicorn --reload + source code mounted as a volume
+#   • frontend: Astro dev server (hot-reload) instead of nginx/static build
+#   • Both services accessible directly on their own ports
+
+services:
+
+  backend:
+    volumes:
+      - ./backend:/app    # live-reload: file changes reflected immediately
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"       # expose backend directly for testing/curl
+    environment:
+      ALLOWED_ORIGINS: "http://localhost:4321,http://localhost:3000,http://localhost:80"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # keep container node_modules, don't override with host
+    ports:
+      - "4321:4321"
+    environment:
+      - HOST=0.0.0.0

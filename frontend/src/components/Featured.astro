@@ -1,0 +1,66 @@
+---
+import type { ITool } from '../data/tools';
+
+interface Props {
+  tools: ITool[];
+}
+const { tools } = Astro.props;
+---
+
+<div id="tools" class="w-full m-2 mb-5 font-bold text-lg underline decoration-pink-500 decoration-dashed underline-offset-8">
+  Featured
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {tools.map((tool) => (
+    <div class="flex flex-col p-4 justify-between bg-white rounded-lg md:p-8 dark:bg-gray-800 shadow-sm shadow-pink-500 mb-5">
+      {tool.link ? (
+        <a href={tool.link}>
+          <img
+            src={`/tool-${tool.id}.png`}
+            class="rounded-lg mb-4 hover:scale-105 duration-300"
+            alt={tool.title}
+          />
+          <h2 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white hover:text-pink-700 dark:hover:text-pink-700">
+            {tool.title}
+          </h2>
+        </a>
+      ) : (
+        <div>
+          <img
+            src={`/tool-${tool.id}.png`}
+            class="rounded-lg mb-4 opacity-50"
+            alt={tool.title}
+          />
+          <h2 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-400 dark:text-gray-500">
+            {tool.title}
+          </h2>
+        </div>
+      )}
+
+      <p class="mb-3 text-gray-500 dark:text-gray-400 text-md">{tool.description}</p>
+      {tool.limits && (
+        <p class="mb-3 text-gray-500 dark:text-gray-400 text-xs">Limits: {tool.limits}</p>
+      )}
+      {tool.usage && (
+        <p class="mb-3 text-gray-500 dark:text-gray-400 text-xs">Usage: {tool.usage}</p>
+      )}
+
+      {tool.link ? (
+        <a
+          href={tool.link}
+          class="inline-flex items-center justify-center gap-2 p-2 rounded bg-pink-500 text-white hover:bg-pink-600 transition-colors"
+        >
+          Try Now
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </a>
+      ) : (
+        <button disabled class="p-2 rounded bg-gray-300 dark:bg-gray-600 text-gray-500 cursor-not-allowed">
+          Coming Soon
+        </button>
+      )}
+    </div>
+  ))}
+</div>

@@ -1,0 +1,117 @@
+---
+import type { ITool } from '../data/tools';
+
+interface Props {
+  tools: ITool[];
+}
+const { tools } = Astro.props;
+---
+
+<div class="w-full m-2 mb-5 font-bold text-lg underline decoration-pink-500 decoration-dashed underline-offset-8">
+  Tools List
+</div>
+
+<ul
+  class="max-w-md divide-y divide-gray-200 dark:divide-gray-700 dark:bg-gray-800 p-6 rounded-lg shadow-sm shadow-pink-500"
+  id="tools-list-wrapper"
+>
+  <!-- Search row -->
+  <li class="pb-3 sm:pb-4">
+    <div class="flex items-center space-x-4 relative">
+      <input
+        id="tools-search"
+        type="text"
+        class="w-full border-2 border-white bg-gray-100 rounded p-2 dark:bg-transparent dark:border-gray-600 dark:text-white focus:outline-none focus:border-pink-400"
+        placeholder="Search in Tools"
+      />
+      <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+        <svg class="h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+        </svg>
+      </div>
+    </div>
+  </li>
+
+  <!-- Tool items (rendered server-side, filtered client-side) -->
+  {tools.map((tool, i) => (
+    <li
+      class="pb-3 pt-3 sm:pb-4 tool-item"
+      data-title={tool.title.toLowerCase()}
+      data-index={i}
+    >
+      <div class="flex items-center space-x-4">
+        <div class="flex-shrink-0">
+          <img
+            class="w-10 h-10 rounded-full ring-1 ring-pink-200"
+            src={tool.id<4 ? `/tool-${tool.id}.png` : 'tool-4.png'}
+            alt={tool.title}
+          />
+        </div>
+        <div class="flex-1 min-w-0">
+          {tool.link ? (
+            <a
+              class="text-sm font-medium text-gray-900 truncate dark:text-white cursor-pointer hover:text-pink-700 dark:hover:text-pink-700 transition-colors"
+              href={tool.link}
+            >
+              {tool.title}
+            </a>
+          ) : (
+            <span class="text-sm font-medium text-gray-400 dark:text-gray-500 truncate">
+              {tool.title}
+            </span>
+          )}
+        </div>
+      </div>
+    </li>
+  ))}
+
+  <!-- See All / Expand -->
+  <li class="pt-3 pb-0 sm:pt-4 text-sm text-gray-500 dark:text-gray-400 flex gap-4">
+    <button id="tools-see-all" class="hover:text-pink-700 dark:hover:text-pink-400 transition-colors">See All</button>
+    <button id="tools-expand"  class="hover:text-pink-700 dark:hover:text-pink-400 transition-colors">Expand</button>
+  </li>
+</ul>
+
+<script>
+  const INITIAL_LIMIT = 5;
+  const EXPAND_LIMIT  = 10;
+
+  const searchInput = document.getElementById('tools-search') as HTMLInputElement;
+  const seeAllBtn   = document.getElementById('tools-see-all')!;
+  const expandBtn   = document.getElementById('tools-expand')!;
+  const items       = Array.from(document.querySelectorAll<HTMLElement>('.tool-item'));
+
+  let currentLimit = INITIAL_LIMIT;
+  let currentFilter = '';
+
+  function render() {
+    let visible = 0;
+    items.forEach((item) => {
+      const title = item.dataset.title ?? '';
+      const matchesFilter = title.includes(currentFilter.toLowerCase());
+      const withinLimit   = visible < currentLimit;
+      const show = matchesFilter && withinLimit;
+      item.style.display = show ? '' : 'none';
+      if (matchesFilter && withinLimit) visible++;
+    });
+  }
+
+  searchInput?.addEventListener('input', () => {
+    currentFilter = searchInput.value;
+    currentLimit  = INITIAL_LIMIT;
+    render();
+  });
+
+  seeAllBtn?.addEventListener('click', () => {
+    currentLimit = items.length;
+    render();
+  });
+
+  expandBtn?.addEventListener('click', () => {
+    currentLimit = EXPAND_LIMIT;
+    render();
+  });
+
+  // Initial render — show first 5
+  render();
+</script>

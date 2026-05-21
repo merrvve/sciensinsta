@@ -1,0 +1,11 @@
+---
+import Layout    from '../layouts/Layout.astro';
+import ToolsList from '../components/ToolsList.astro';
+import { tools } from '../data/tools';
+---
+
+<Layout title="Sciensinsta – All Tools">
+  <div class="max-w-screen-xl mx-auto px-4 py-6">
+    <ToolsList tools={tools} />
+  </div>
+</Layout>
