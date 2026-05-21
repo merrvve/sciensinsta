@@ -1,16 +1,18 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from io import BytesIO
+import json
 import redis as redis_lib
 import os
 
 from tasks import generate_pptx
+from pubmed_tasks import search_pubmed_task, USER_DOCS_DIR
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _redis    = redis_lib.from_url(REDIS_URL, decode_responses=False)
@@ -136,32 +138,66 @@ def download_pptx(task_id: str):
         headers={"Content-Disposition": 'attachment; filename="presentation.pptx"'},
     )
 
-# ── PubMed abstract search ────────────────────────────────────────────────────
+# ── PubMed abstract search (submit) ──────────────────────────────────────────
 @app.post("/api/search-pubmed")
-def search_pubmed(body: PubmedRequest):
+@limiter.limit("5/minute")
+def search_pubmed(request: Request, body: PubmedRequest):
     """
-    Searches PubMed for the given query, downloads up to 100 abstracts,
-    and returns a word-cloud image + metadata.
-    Returns a hello stub for now.
+    Enqueues a PubMed search task and returns the task_id immediately.
+
+    Rate-limited to 5 requests per minute per IP (searches take ~10–60 s
+    and hit NCBI servers; be a good citizen).
+
+    Poll GET /api/task/{task_id} until status == 'done', then call
+    GET /api/pubmed-result/{task_id} to retrieve the full payload.
     """
-    print(f"[pubmed] query={body.query!r}")
-    # TODO: real PubMed NCBI API call
-    return {
-        "message": "hello",
-        "total_abstracts": 0,
-        "downloaded_abstracts": 0,
-        "work_id": "stub-work-id",
-        "dict": "",
-        "image": "",
-    }
+    query = body.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="query must not be empty")
+    print(f"[pubmed] queuing query={query!r}")
+    task = search_pubmed_task.delay(query)
+    return {"task_id": task.id, "status": "queued"}
+
+
+# ── PubMed result (fetch from Redis) ─────────────────────────────────────────
+@app.get("/api/pubmed-result/{task_id}")
+def pubmed_result(task_id: str):
+    """
+    Retrieves the full PubMed search payload from Redis.
+
+    Returns 404 if the result has expired (TTL = 10 min) or doesn't exist yet
+    (task still processing — check /api/task/{task_id} first).
+    """
+    raw = _redis.get(f"pubmed:{task_id}")
+    if not raw:
+        raise HTTPException(
+            status_code=404,
+            detail="Result not found — the task may still be running, "
+                   "or the result has expired (10-min TTL).",
+        )
+    return json.loads(raw)
+
 
 # ── Download generated file ───────────────────────────────────────────────────
 @app.post("/api/download-file")
 def download_file(body: DownloadRequest):
     """
-    Returns a previously generated file (e.g. abstracts.xlsx) as a download.
-    Returns a hello stub for now.
+    Streams a previously generated .xlsx file from the userDocs directory.
+    Expects ``filename`` to be a bare filename like ``<task_id>.xlsx``.
     """
-    print(f"[download] filename={body.filename!r}")
-    # TODO: return FileResponse from a temp/work directory
-    return {"message": "hello", "received": {"filename": body.filename}}
+    # Strip any path components — only allow a bare filename
+    safe_name = os.path.basename(body.filename)
+    filepath  = os.path.join(USER_DOCS_DIR, safe_name)
+
+    if not os.path.isfile(filepath):
+        raise HTTPException(
+            status_code=404,
+            detail="File not found — it may have expired or the task is still running.",
+        )
+
+    print(f"[download] serving {filepath!r}")
+    return FileResponse(
+        filepath,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=safe_name,
+    )

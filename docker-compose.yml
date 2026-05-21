@@ -26,6 +26,8 @@ services:
     env_file:
       - path: ./backend/.env
         required: false
+    volumes:
+      - user_docs:/app/userDocs   # shared with celery-worker so downloads work
     depends_on:
       redis:
         condition: service_healthy
@@ -49,6 +51,8 @@ services:
     env_file:
       - path: ./backend/.env
         required: false
+    volumes:
+      - user_docs:/app/userDocs   # shared with backend so downloads work
     depends_on:
       redis:
         condition: service_healthy
@@ -64,3 +68,6 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+volumes:
+  user_docs:   # xlsx files written by celery-worker, served by backend

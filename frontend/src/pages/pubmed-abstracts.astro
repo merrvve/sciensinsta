@@ -60,6 +60,7 @@ import Share  from '../components/Share.astro';
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
         </svg>
+        <p id="loading-status" class="text-sm text-gray-400 mb-4">Queued…</p>
       </div>
 
       <!-- Error message -->
@@ -107,74 +108,149 @@ import Share  from '../components/Share.astro';
 </Layout>
 
 <script>
+  // ── Helpers ────────────────────────────────────────────────────────────────
   function show(id: string) { document.getElementById(id)?.classList.remove('hidden'); }
   function hide(id: string) { document.getElementById(id)?.classList.add('hidden'); }
 
-  const queryInput    = document.getElementById('query-input')    as HTMLInputElement;
-  const searchBtn     = document.getElementById('search-btn')!;
-  const downloadBtn   = document.getElementById('download-btn')!;
-  const downloadLink  = document.getElementById('download-link')  as HTMLAnchorElement;
-  const totalEl       = document.getElementById('total-abstracts')!;
-  const downloadedEl  = document.getElementById('downloaded-abstracts')!;
-  const wordcloudImg  = document.getElementById('wordcloud-img')  as HTMLImageElement;
+  const queryInput     = document.getElementById('query-input')     as HTMLInputElement;
+  const searchBtn      = document.getElementById('search-btn')      as HTMLButtonElement;
+  const downloadBtn    = document.getElementById('download-btn')!;
+  const downloadLink   = document.getElementById('download-link')   as HTMLAnchorElement;
+  const totalEl        = document.getElementById('total-abstracts')!;
+  const downloadedEl   = document.getElementById('downloaded-abstracts')!;
+  const wordcloudImg   = document.getElementById('wordcloud-img')   as HTMLImageElement;
+  const loadingStatus  = document.getElementById('loading-status')!;
 
-  let currentWorkId = '';
+  // task_id returned by the submit call; reused for polling + download
+  let currentTaskId = '';
 
+  // ── Submit → poll → render ─────────────────────────────────────────────────
   searchBtn.addEventListener('click', async () => {
     const query = queryInput.value.trim();
     if (!query) return;
 
+    // Reset UI
     hide('results-panel');
     hide('results-error');
     hide('coffee-link');
+    loadingStatus.textContent = 'Queued…';
     show('results-loading');
+    searchBtn.disabled = true;
 
+    // ── 1. Submit task ─────────────────────────────────────────────────────
     try {
       const res = await fetch('/api/search-pubmed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
       });
-      if (!res.ok) throw new Error('Server error');
+
+      if (res.status === 429) {
+        hide('results-loading');
+        show('results-error');
+        searchBtn.disabled = false;
+        return;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
-      currentWorkId = data.work_id;
-
-      totalEl.textContent      = String(data.total_abstracts);
-      downloadedEl.textContent = String(data.downloaded_abstracts);
-      wordcloudImg.src         = `data:image/png;base64,${data.image}`;
-
-      hide('results-loading');
-      show('results-panel');
-      show('coffee-link');
+      currentTaskId = data.task_id;
     } catch {
       hide('results-loading');
       show('results-error');
+      searchBtn.disabled = false;
+      return;
     }
+
+    // ── 2. Poll /api/task/{task_id} until done or failed ──────────────────
+    const POLL_MS   = 2500;   // PubMed calls are slow; no need to hammer the API
+    const MAX_POLLS = 120;    // 120 × 2.5 s = 5 min max
+    let   polls     = 0;
+
+    const poll = async (): Promise<void> => {
+      if (polls++ >= MAX_POLLS) {
+        hide('results-loading');
+        show('results-error');
+        searchBtn.disabled = false;
+        return;
+      }
+
+      let status: string;
+      try {
+        const res  = await fetch(`/api/task/${currentTaskId}`);
+        const data = await res.json();
+        status = data.status;
+      } catch {
+        hide('results-loading');
+        show('results-error');
+        searchBtn.disabled = false;
+        return;
+      }
+
+      if (status === 'failed') {
+        hide('results-loading');
+        show('results-error');
+        searchBtn.disabled = false;
+        return;
+      }
+
+      if (status === 'queued' || status === 'processing') {
+        loadingStatus.textContent =
+          status === 'queued' ? 'Queued…' : 'Searching PubMed & building word cloud…';
+        setTimeout(poll, POLL_MS);
+        return;
+      }
+
+      // ── 3. Done — fetch full payload from Redis ────────────────────────
+      if (status === 'done') {
+        try {
+          const res = await fetch(`/api/pubmed-result/${currentTaskId}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          totalEl.textContent      = String(data.total_abstracts);
+          downloadedEl.textContent = String(data.downloaded_abstracts);
+          wordcloudImg.src         = `data:image/png;base64,${data.image}`;
+
+          hide('results-loading');
+          show('results-panel');
+          show('coffee-link');
+        } catch {
+          hide('results-loading');
+          show('results-error');
+        } finally {
+          searchBtn.disabled = false;
+        }
+      }
+    };
+
+    setTimeout(poll, POLL_MS);
   });
 
+  // ── Download .xlsx ─────────────────────────────────────────────────────────
   downloadBtn.addEventListener('click', async () => {
-    if (!currentWorkId) { alert('File not found.'); return; }
+    if (!currentTaskId) { alert('No file available yet.'); return; }
 
     try {
       const res = await fetch('/api/download-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: currentWorkId + '.xlsx' }),
+        body: JSON.stringify({ filename: `${currentTaskId}.xlsx` }),
       });
-      if (!res.ok) throw new Error('Server error');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const blob    = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(await res.blob());
       downloadLink.href = blobUrl;
       downloadLink.setAttribute('download', 'abstracts.xlsx');
       downloadLink.click();
-    } catch (err) {
-      alert('Download failed. Please try again.');
+      // Clean up the object URL after the download starts
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+    } catch {
+      alert('Download failed — please try again.');
     }
   });
 
-  // Allow pressing Enter in the query input
+  // ── Enter key shortcut ─────────────────────────────────────────────────────
   queryInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') searchBtn.click();
   });

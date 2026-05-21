@@ -17,6 +17,10 @@ services:
     environment:
       ALLOWED_ORIGINS: "http://localhost:4321,http://localhost:3000,http://localhost:80"
 
+  celery-worker:
+    volumes:
+      - ./backend:/app    # same host path → worker & backend share userDocs on disk
+
   frontend:
     build:
       context: ./frontend

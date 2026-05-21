@@ -10,8 +10,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Non-root user for security
-RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
+# Non-root user for security.
+# Create userDocs before chown so Docker seeds the named volume with the
+# correct ownership on first mount (named volumes copy image dir contents).
+RUN mkdir -p /app/userDocs \
+    && adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000

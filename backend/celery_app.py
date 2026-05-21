@@ -7,7 +7,7 @@ celery = Celery(
     "sciensinsta",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["tasks"],      # auto-import tasks module on worker start
+    include=["tasks", "pubmed_tasks"],   # auto-import task modules on worker start
 )
 
 celery.conf.update(

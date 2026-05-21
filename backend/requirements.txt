@@ -7,3 +7,8 @@ python-pptx==1.0.2
 slowapi==0.1.9
 celery[redis]==5.5.2
 redis==5.2.1
+# PubMed search dependencies
+pandas==2.2.3
+openpyxl==3.1.5
+matplotlib==3.9.4
+wordcloud==1.9.4
