@@ -199,7 +199,7 @@ const prompt = `You are a helpful assistant. Organise this text content into sum
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   document.getElementById('modal-close-btn')?.addEventListener('click', closeModal);
 
-  // ─── Convert ──────────────────────────────────────────────────────────────
+  // ─── Convert (submit → poll → download) ──────────────────────────────────
   async function convert(text: string, tool: number) {
     if (!text.trim()) {
       openModal('Sorry, the input is empty. Please provide content.', true);
@@ -212,19 +212,76 @@ const prompt = `You are a helpful assistant. Organise this text content into sum
         return;
       }
     }
-    openModal('Your file is being created… Please wait…', false);
+
+    openModal('Your request has been queued… Please wait…', false);
+
+    // 1 ── Submit task
+    let taskId: string;
     try {
       const res = await fetch('/api/create-slides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, tool }),
       });
-      if (!res.ok) throw new Error('Server error');
-      const blobUrl = URL.createObjectURL(await res.blob());
-      openModal('Your file is ready. The download will start automatically. You can also click below:', false, blobUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      taskId = data.task_id;
     } catch {
-      openModal('Sorry, an error occurred. Please try again or contact the authors.', true);
+      openModal('Sorry, failed to submit the request. Please try again.', true);
+      return;
     }
+
+    // 2 ── Poll until done or failed
+    const POLL_INTERVAL = 1500;   // ms
+    const MAX_POLLS     = 120;    // 3 min max
+    let   polls         = 0;
+
+    const poll = async (): Promise<void> => {
+      if (polls++ >= MAX_POLLS) {
+        openModal('Sorry, the request timed out. Please try again.', true);
+        return;
+      }
+
+      let status: string;
+      try {
+        const res  = await fetch(`/api/task/${taskId}`);
+        const data = await res.json();
+        status = data.status;
+
+        if (status === 'failed') {
+          openModal(`Sorry, an error occurred: ${data.detail ?? 'unknown error'}`, true);
+          return;
+        }
+      } catch {
+        openModal('Sorry, lost connection while waiting for the file. Please try again.', true);
+        return;
+      }
+
+      if (status === 'queued' || status === 'processing') {
+        const label = status === 'queued' ? 'Queued…' : 'Creating your file…';
+        modalStatus.textContent = label;
+        setTimeout(poll, POLL_INTERVAL);
+        return;
+      }
+
+      // 3 ── Done — fetch the file and trigger download
+      if (status === 'done') {
+        try {
+          const fileRes = await fetch(`/api/download-pptx/${taskId}`);
+          if (!fileRes.ok) throw new Error(`HTTP ${fileRes.status}`);
+          const blobUrl = URL.createObjectURL(await fileRes.blob());
+          openModal(
+            'Your file is ready. The download will start automatically. You can also click below:',
+            false,
+            blobUrl,
+          );
+        } catch {
+          openModal('File ready but download failed. Please try again.', true);
+        }
+      }
+    };
+
+    setTimeout(poll, POLL_INTERVAL);
   }
 
   document.getElementById('convert-btn-1')?.addEventListener('click', () => {

@@ -1,5 +1,17 @@
 services:
 
+  # ── Redis (message broker + result backend) ───────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # ── FastAPI backend ──────────────────────────────────────────────────────────
   backend:
     build:
@@ -7,14 +19,16 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     expose:
-      - "8000"           # internal only — nginx proxies /api/* here
+      - "8000"
     environment:
-      # API calls come through nginx on the same origin, so no CORS needed
-      # in production. Keep localhost entries for curl / health checks.
       ALLOWED_ORIGINS: "http://localhost,http://localhost:80"
+      REDIS_URL: "redis://redis:6379/0"
     env_file:
       - path: ./backend/.env
-        required: false  # optional — falls back to 'environment' above
+        required: false
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
@@ -23,6 +37,22 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── Celery worker ─────────────────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+    env_file:
+      - path: ./backend/.env
+        required: false
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # ── Astro frontend (nginx) ───────────────────────────────────────────────────
   frontend:
     build:
@@ -30,7 +60,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"          # only exposed port — everything goes through nginx
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy
