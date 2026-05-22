@@ -21,14 +21,14 @@ services:
     expose:
       - "8000"
     environment:
-      ALLOWED_ORIGINS: "http://localhost,http://localhost:80"
+      ALLOWED_ORIGINS: "https://sciensinsta.com,https://www.sciensinsta.com"
       REDIS_URL: "redis://redis:6379/0"
     env_file:
       - path: ./backend/.env
         required: false
     volumes:
-      - user_docs:/app/userDocs             # shared with celery-worker so downloads work
-      - ./backend/subscribers:/app/subscribers  # newsletter subscriber list
+      - user_docs:/app/userDocs
+      - ./backend/subscribers:/app/subscribers
     depends_on:
       redis:
         condition: service_healthy
@@ -53,22 +53,32 @@ services:
       - path: ./backend/.env
         required: false
     volumes:
-      - user_docs:/app/userDocs   # shared with backend so downloads work
+      - user_docs:/app/userDocs
     depends_on:
       redis:
         condition: service_healthy
 
-  # ── Astro frontend (nginx) ───────────────────────────────────────────────────
+  # ── Astro frontend (nginx, internal only) ────────────────────────────────────
+  # Does NOT bind host ports — the shared nginx-proxy container routes to it
+  # via the external "web" network using the container_name below.
   frontend:
+    container_name: sciensinsta-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "80:80"
+    expose:
+      - "80"
+    networks:
+      - default
+      - web
     depends_on:
       backend:
         condition: service_healthy
 
 volumes:
-  user_docs:   # xlsx files written by celery-worker, served by backend
+  user_docs:
+
+networks:
+  web:
+    external: true   # shared with other apps; create with: docker network create web
