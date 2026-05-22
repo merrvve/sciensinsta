@@ -1,0 +1,91 @@
+---
+import news from '../data/news.json';
+
+// Format ISO date → "19 May 2026"
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    day:   'numeric',
+    month: 'short',
+    year:  'numeric',
+  });
+}
+---
+
+<div class="w-full m-2 mb-5 font-bold text-lg underline decoration-pink-500 decoration-dashed underline-offset-8">
+  Recent Research
+</div>
+
+<ul class="w-full divide-y divide-gray-200 dark:divide-gray-700 dark:bg-gray-800 p-6 rounded-lg shadow-sm shadow-pink-500">
+
+  <!-- Article items -->
+  {news.map((article, i) => (
+    <li class="research-item" data-index={i}>
+      <a
+        href={article.link}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open "${article.title}" in a new tab`}
+        class="flex items-start gap-3 px-2 py-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+      >
+
+        <!-- Article icon -->
+        <div class="flex-shrink-0 mt-0.5 w-8 h-8 flex items-center justify-center rounded-full bg-pink-50 dark:bg-gray-700 ring-1 ring-pink-200 dark:ring-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+
+        <!-- Title + meta -->
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-900 dark:text-white leading-snug line-clamp-2">
+            {article.title}
+          </p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {article.journal} · {fmtDate(article.publication_date)}
+          </p>
+        </div>
+
+        <!-- External link icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="flex-shrink-0 mt-0.5 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+
+      </a>
+    </li>
+  ))}
+
+  <!-- See All / Expand -->
+  <li class="pt-3 pb-0 sm:pt-4 text-sm text-gray-500 dark:text-gray-400 flex gap-4">
+    <button id="research-see-all" class="hover:text-pink-700 dark:hover:text-pink-400 transition-colors">See All</button>
+    <button id="research-expand"  class="hover:text-pink-700 dark:hover:text-pink-400 transition-colors">Expand</button>
+  </li>
+</ul>
+
+<script>
+  const INITIAL_LIMIT = 5;
+  const EXPAND_LIMIT  = 10;
+
+  const seeAllBtn = document.getElementById('research-see-all')!;
+  const expandBtn = document.getElementById('research-expand')!;
+  const items     = Array.from(document.querySelectorAll<HTMLElement>('.research-item'));
+
+  let currentLimit = INITIAL_LIMIT;
+
+  function render() {
+    items.forEach((item, i) => {
+      item.style.display = i < currentLimit ? '' : 'none';
+    });
+  }
+
+  seeAllBtn?.addEventListener('click', () => {
+    currentLimit = items.length;
+    render();
+  });
+
+  expandBtn?.addEventListener('click', () => {
+    currentLimit = Math.min(currentLimit + EXPAND_LIMIT, items.length);
+    render();
+  });
+
+  render();
+</script>

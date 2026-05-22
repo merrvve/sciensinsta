@@ -1,16 +1,14 @@
 ---
-import Layout   from '../layouts/Layout.astro';
-import Hero       from '../components/Hero.astro';
+import Layout     from '../layouts/Layout.astro';
 import Featured   from '../components/Featured.astro';
 import ToolsList  from '../components/ToolsList.astro';
+import Research   from '../components/Research.astro';
 import Contact    from '../components/Contact.astro';
 import Newsletter from '../components/Newsletter.astro';
 import { tools }  from '../data/tools';
 ---
 
 <Layout title="Sciensinsta – Home">
-
-
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-6 dark:bg-gray-700 dark:text-white duration-300">
 
@@ -24,7 +22,12 @@ import { tools }  from '../data/tools';
       <ToolsList tools={tools} />
     </div>
 
-    <!-- Contact form (2/3 width) -->
+    <!-- Recent research (2/3 width) -->
+    <div class="md:col-span-2">
+      <Research />
+    </div>
+
+    <!-- Contact form (2/3 width) + Newsletter (1/3 width) -->
     <div class="md:col-span-2">
       <Contact />
     </div>

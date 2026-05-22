@@ -1,5 +1,13 @@
 ---
+import { Image } from 'astro:assets';
 import type { ITool } from '../data/tools';
+
+import tool1 from '../assets/tool-1.png';
+import tool2 from '../assets/tool-2.png';
+import tool3 from '../assets/tool-3.png';
+import tool4 from '../assets/tool-4.png';
+
+const toolImages: Record<number, ImageMetadata> = { 1: tool1, 2: tool2, 3: tool3, 4: tool4 };
 
 interface Props {
   tools: ITool[];
@@ -41,10 +49,13 @@ const { tools } = Astro.props;
     >
       <div class="flex items-center space-x-4">
         <div class="flex-shrink-0">
-          <img
-            class="w-10 h-10 rounded-full ring-1 ring-pink-200"
-            src={tool.id<4 ? `/tool-${tool.id}.png` : 'tool-4.png'}
-            alt={tool.title}
+          <Image
+            src={toolImages[tool.id] ?? tool4}
+            width={40}
+            height={40}
+            loading="eager"
+            class="rounded-full ring-1 ring-pink-200"
+            alt={`${tool.title} icon`}
           />
         </div>
         <div class="flex-1 min-w-0">

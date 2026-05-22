@@ -5,10 +5,10 @@ PubMed abstract search: core logic + Celery task.
 
 Flow
 ────
-1. POST /api/search-pubmed   → enqueues search_pubmed_task → returns task_id
-2. GET  /api/task/{task_id}  → poll Celery state (shared with pptx)
-3. GET  /api/pubmed-result/{task_id} → fetch JSON payload from Redis
-4. POST /api/download-file   → stream the generated .xlsx to the client
+1. POST /api/search-pubmed          → enqueues search_pubmed_task → returns task_id
+2. GET  /api/task/{task_id}         → poll Celery state (shared with pptx)
+3. GET  /api/pubmed-result/{task_id}→ fetch JSON payload from Redis
+4. POST /api/download-file          → returns presigned R2 URL for the .xlsx
 """
 
 from __future__ import annotations
@@ -29,15 +29,11 @@ import redis as redis_lib
 from wordcloud import WordCloud, STOPWORDS
 
 from celery_app import celery
+from r2_service import upload_bytes
 
 # ── Redis client ──────────────────────────────────────────────────────────────
 REDIS_URL          = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 PUBMED_RESULT_TTL  = int(os.getenv("PUBMED_RESULT_TTL", 600))   # seconds (10 min)
-
-# Absolute path so both the FastAPI container and the Celery worker container
-# resolve to the same location when a shared Docker volume is mounted at /app/userDocs.
-_HERE         = os.path.dirname(os.path.abspath(__file__))
-USER_DOCS_DIR = os.getenv("USER_DOCS_DIR", os.path.join(_HERE, "userDocs"))
 
 _redis = redis_lib.from_url(REDIS_URL, decode_responses=False)
 
@@ -197,9 +193,15 @@ def search_pubmed_core(query: str, work_id: str) -> dict:
     keep_cols  = [c for c in [0, 1, 2, 3, 4, "Link"] if c in df.columns]
     new_df     = df[keep_cols].rename(columns=rename_map)
 
-    os.makedirs(USER_DOCS_DIR, exist_ok=True)
-    filepath = os.path.join(USER_DOCS_DIR, f"{work_id}.xlsx")
-    new_df.to_excel(filepath, index=False)
+    # Write xlsx to an in-memory buffer and upload directly to R2.
+    xlsx_buf = io.BytesIO()
+    new_df.to_excel(xlsx_buf, index=False)
+    xlsx_buf.seek(0)
+    upload_bytes(
+        xlsx_buf.getvalue(),
+        f"{work_id}.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
     result["dict"] = new_df.to_dict()
     return result

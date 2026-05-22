@@ -1,23 +1,24 @@
+from dotenv import load_dotenv
+load_dotenv()   # must run before any local import that reads os.getenv at module level
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from io import BytesIO
+import fcntl
 import json
 import redis as redis_lib
 import os
 
 from tasks import generate_pptx
-from pubmed_tasks import search_pubmed_task, USER_DOCS_DIR
+from pubmed_tasks import search_pubmed_task
+from r2_service import presigned_download_url
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _redis    = redis_lib.from_url(REDIS_URL, decode_responses=False)
-
-load_dotenv()
 
 # ── Rate limiter (keyed by client IP) ────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
@@ -39,15 +40,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Request models ─────────────────────────────────────────────────────────────
-class ContactRequest(BaseModel):
-    email: str
-    message: str
-    timezone: str = ""
+# ── Subscribers file ──────────────────────────────────────────────────────────
+# Resolve once at startup — relative paths are anchored to this file's directory
+# so they work the same whether running locally or inside the container.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_raw  = os.getenv("SUBSCRIBERS_FILE", "subscribers.txt")
+SUBSCRIBERS_FILE = _raw if os.path.isabs(_raw) else os.path.join(_HERE, _raw)
 
+# ── Request models ─────────────────────────────────────────────────────────────
 class NotifyRequest(BaseModel):
     email: str
-    timezone: str = ""
 
 class SlidesRequest(BaseModel):
     text: str
@@ -59,24 +61,34 @@ class PubmedRequest(BaseModel):
 class DownloadRequest(BaseModel):
     filename: str
 
+# ── Newsletter subscribe ──────────────────────────────────────────────────────
+@app.post("/api/add-notify-list")
+@limiter.limit("5/minute")
+def add_notify(request: Request, body: NotifyRequest):
+    """
+    Appends the subscriber's email address to SUBSCRIBERS_FILE (one per line).
+    Uses an exclusive file lock so concurrent requests don't corrupt the file.
+    """
+    email = body.email.strip().lower()
+    if not email:
+        raise HTTPException(status_code=422, detail="email must not be empty")
+
+    os.makedirs(os.path.dirname(os.path.abspath(SUBSCRIBERS_FILE)), exist_ok=True)
+    with open(SUBSCRIBERS_FILE, "a", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.write(email + "\n")
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    print(f"[newsletter] subscribed {email!r}")
+    return {"message": "subscribed"}
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/api/health")
 def health():
     return {"status": "ok", "message": "hello"}
-
-# ── Contact ───────────────────────────────────────────────────────────────────
-@app.post("/api/add-contact")
-def add_contact(body: ContactRequest):
-    """Receives a contact/feedback form submission."""
-    print(f"[contact] email={body.email!r}  tz={body.timezone!r}")
-    return {"message": "hello", "received": {"email": body.email}}
-
-# ── Newsletter ────────────────────────────────────────────────────────────────
-@app.post("/api/add-notify-list")
-def add_notify(body: NotifyRequest):
-    """Adds an email to the release-notification list."""
-    print(f"[notify] email={body.email!r}  tz={body.timezone!r}")
-    return {"message": "hello", "received": {"email": body.email}}
 
 # ── Text → .pptx  (submit) ────────────────────────────────────────────────────
 @app.post("/api/create-slides")
@@ -114,29 +126,27 @@ def task_status(task_id: str):
     return {"status": state.lower()}
 
 
-# ── Download generated file (fetch + delete) ──────────────────────────────────
+# ── Download generated .pptx (redirect to R2 presigned URL) ──────────────────
 @app.get("/api/download-pptx/{task_id}")
 def download_pptx(task_id: str):
     """
-    Fetches the generated .pptx bytes from Redis, streams them to the client,
-    then deletes the Redis key so nothing lingers on the server.
-    """
-    key  = f"pptx:{task_id}"
-    data = _redis.get(key)
+    Generates a presigned Cloudflare R2 URL for the .pptx file created by
+    *task_id* and redirects the client to it (307 Temporary Redirect).
 
-    if not data:
+    Returns 404 if the task has not completed yet or the file does not exist
+    in R2.
+    """
+    result = generate_pptx.AsyncResult(task_id)
+    if result.state != "SUCCESS":
         raise HTTPException(
             status_code=404,
-            detail="File not found — it may have expired (5 min TTL) or already been downloaded.",
+            detail="File not ready — the task may still be running or has failed.",
         )
-
-    _redis.delete(key)   # delete immediately; one download per task
-
-    return StreamingResponse(
-        BytesIO(data),
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        headers={"Content-Disposition": 'attachment; filename="presentation.pptx"'},
-    )
+    try:
+        url = presigned_download_url(f"{task_id}.pptx")
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found in storage.")
+    return RedirectResponse(url=url, status_code=307)
 
 # ── PubMed abstract search (submit) ──────────────────────────────────────────
 @app.post("/api/search-pubmed")
@@ -178,26 +188,23 @@ def pubmed_result(task_id: str):
     return json.loads(raw)
 
 
-# ── Download generated file ───────────────────────────────────────────────────
+# ── Download generated .xlsx (redirect to R2 presigned URL) ──────────────────
 @app.post("/api/download-file")
 def download_file(body: DownloadRequest):
     """
-    Streams a previously generated .xlsx file from the userDocs directory.
-    Expects ``filename`` to be a bare filename like ``<task_id>.xlsx``.
-    """
-    # Strip any path components — only allow a bare filename
-    safe_name = os.path.basename(body.filename)
-    filepath  = os.path.join(USER_DOCS_DIR, safe_name)
+    Generates a presigned Cloudflare R2 URL for the requested .xlsx file
+    and redirects the client to it (307 Temporary Redirect).
 
-    if not os.path.isfile(filepath):
+    Expects ``filename`` to be a bare filename like ``<task_id>.xlsx``.
+    Any path components are stripped for safety.
+    """
+    safe_name = os.path.basename(body.filename)
+    print(f"[download] generating R2 presigned URL for {safe_name!r}")
+    try:
+        url = presigned_download_url(safe_name)
+    except FileNotFoundError:
         raise HTTPException(
             status_code=404,
             detail="File not found — it may have expired or the task is still running.",
         )
-
-    print(f"[download] serving {filepath!r}")
-    return FileResponse(
-        filepath,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename=safe_name,
-    )
+    return RedirectResponse(url=url, status_code=307)

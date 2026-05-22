@@ -27,7 +27,8 @@ services:
       - path: ./backend/.env
         required: false
     volumes:
-      - user_docs:/app/userDocs   # shared with celery-worker so downloads work
+      - user_docs:/app/userDocs             # shared with celery-worker so downloads work
+      - ./backend/subscribers:/app/subscribers  # newsletter subscriber list
     depends_on:
       redis:
         condition: service_healthy

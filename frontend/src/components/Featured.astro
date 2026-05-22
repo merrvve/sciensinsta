@@ -1,5 +1,13 @@
 ---
+import { Image } from 'astro:assets';
 import type { ITool } from '../data/tools';
+
+import tool1 from '../assets/tool-1.png';
+import tool2 from '../assets/tool-2.png';
+import tool3 from '../assets/tool-3.png';
+import tool4 from '../assets/tool-4.png';
+
+const toolImages: Record<number, ImageMetadata> = { 1: tool1, 2: tool2, 3: tool3, 4: tool4 };
 
 interface Props {
   tools: ITool[];
@@ -16,10 +24,12 @@ const { tools } = Astro.props;
     <div class="flex flex-col p-4 justify-between bg-white rounded-lg md:p-8 dark:bg-gray-800 shadow-sm shadow-pink-500 mb-5">
       {tool.link ? (
         <a href={tool.link}>
-          <img
-            src={`/tool-${tool.id}.png`}
+          <Image
+            src={toolImages[tool.id] ?? tool4}
+            loading="eager"
+            fetchpriority="high"
             class="rounded-lg mb-4 hover:scale-105 duration-300"
-            alt={tool.title}
+            alt={`${tool.title} – click to open tool`}
           />
           <h2 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white hover:text-pink-700 dark:hover:text-pink-700">
             {tool.title}
@@ -27,10 +37,12 @@ const { tools } = Astro.props;
         </a>
       ) : (
         <div>
-          <img
-            src={`/tool-${tool.id}.png`}
+          <Image
+            src={toolImages[tool.id] ?? tool4}
+            loading="eager"
+            fetchpriority="high"
             class="rounded-lg mb-4 opacity-50"
-            alt={tool.title}
+            alt={`${tool.title} – coming soon`}
           />
           <h2 class="mb-3 text-2xl font-extrabold tracking-tight text-gray-400 dark:text-gray-500">
             {tool.title}

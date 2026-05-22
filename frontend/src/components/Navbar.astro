@@ -1,4 +1,7 @@
 ---
+import { Image } from 'astro:assets';
+import logoImg from '../assets/logo-t.png';
+
 const currentPath = Astro.url.pathname;
 ---
 
@@ -7,7 +10,7 @@ const currentPath = Astro.url.pathname;
 
     <!-- Logo -->
     <a href="/" class="flex items-start space-x-3 rtl:space-x-reverse">
-      <img src="/logo-t.png" class="w-10 h-10 rounded-lg" alt="Sciensinsta Logo" />
+      <Image src={logoImg} width={40} height={40} loading="eager" class="rounded-lg" alt="Sciensinsta – home" />
       <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">Sciensinsta</span>
     </a>
 
