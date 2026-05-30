@@ -100,6 +100,21 @@ def object_exists(filename: str) -> bool:
         raise
 
 
+def download_bytes(filename: str) -> bytes:
+    """
+    Download and return the raw bytes of ``user-docs/<filename>`` from R2.
+
+    Raises
+    ------
+    FileNotFoundError  if the object does not exist in R2.
+    """
+    if not object_exists(filename):
+        raise FileNotFoundError(f"R2 object not found: user-docs/{filename}")
+
+    response = _client().get_object(Bucket=_bucket(), Key=_object_key(filename))
+    return response["Body"].read()
+
+
 def presigned_download_url(filename: str) -> str:
     """
     Generate and return a time-limited presigned GET URL for

@@ -3,7 +3,7 @@ load_dotenv()   # must run before any local import that reads os.getenv at modul
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -15,7 +15,7 @@ import os
 
 from tasks import generate_pptx
 from pubmed_tasks import search_pubmed_task
-from r2_service import presigned_download_url
+from r2_service import presigned_download_url, download_bytes
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 _redis    = redis_lib.from_url(REDIS_URL, decode_responses=False)
@@ -188,23 +188,27 @@ def pubmed_result(task_id: str):
     return json.loads(raw)
 
 
-# ── Download generated .xlsx (redirect to R2 presigned URL) ──────────────────
+# ── Download generated .xlsx (proxy through backend to avoid CORS) ────────────
 @app.post("/api/download-file")
 def download_file(body: DownloadRequest):
     """
-    Generates a presigned Cloudflare R2 URL for the requested .xlsx file
-    and redirects the client to it (307 Temporary Redirect).
+    Fetches the requested .xlsx file from R2 and streams it directly to the
+    client, avoiding CORS issues that arise when redirecting to a presigned URL.
 
     Expects ``filename`` to be a bare filename like ``<task_id>.xlsx``.
     Any path components are stripped for safety.
     """
     safe_name = os.path.basename(body.filename)
-    print(f"[download] generating R2 presigned URL for {safe_name!r}")
+    print(f"[download] proxying R2 file {safe_name!r}")
     try:
-        url = presigned_download_url(safe_name)
+        data = download_bytes(safe_name)
     except FileNotFoundError:
         raise HTTPException(
             status_code=404,
             detail="File not found — it may have expired or the task is still running.",
         )
-    return RedirectResponse(url=url, status_code=307)
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+    )
